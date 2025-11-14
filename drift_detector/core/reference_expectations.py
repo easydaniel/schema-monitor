@@ -59,35 +59,33 @@ class ReferenceExpectationBuilder:
     def add_categorical_distribution_drifts(self, threshold: float = 0.1) -> None:
         """
         Adds expectations to detect distribution drift for categorical columns using KL Divergence.
-        For each numerical column (as a proxy for categorical in this context, though it should be
-        refined for true categorical dtypes), it calculates the value distribution in the reference
-        DataFrame and adds an `expect_column_kl_divergence_to_be_less_than` expectation.
+        It identifies categorical-like columns (non-numeric with low cardinality) and
+        adds an `expect_column_kl_divergence_to_be_less_than` expectation.
 
         Args:
             threshold: The maximum acceptable KL divergence between the reference and target distributions.
         """
         for column in self.reference_df.columns:
-            # This condition `is_numeric_dtype` seems incorrect for categorical distribution.
-            # It should check for object/category dtype.
-            # For now, keeping as is based on existing code, but noting for future refinement.
-            if is_numeric_dtype(self.reference_df[column]): 
-                distribution = self.reference_df[column].value_counts(normalize=True)
+            print(f"DEBUG: add_categorical_distribution_drifts - Column: {column}, Dtype: {self.reference_df[column].dtype}, is_numeric_dtype: {is_numeric_dtype(self.reference_df[column])}")
+            # Heuristic for categorical: not numeric and low cardinality
+            if not is_numeric_dtype(self.reference_df[column]) and self.reference_df[column].nunique() / len(self.reference_df) < 0.5:
+                distribution = self.reference_df[column].value_counts(normalize=True, dropna=False)
                 self.expectations.append(gxe.ExpectColumnKLDivergenceToBeLessThan(column=column, partition_object=distribution.to_dict(), threshold=threshold))
             else:
-                # Other cases might not be categorical, we will need specific methods to deal with those. e.g. objects may be free form text or standardized enum text.
                 pass
         
     def add_numerical_distribution_drifts(self, threshold: float = 0.1) -> None:
         """
         Adds expectations to detect distribution drift for numerical columns.
         For each numerical column, it adds expectations for the mean and standard deviation
-        to be within a certain range of the reference values, based on a given threshold.
+        to be within a certain range of the reference values, based on a given percentage threshold.
 
         Args:
-            threshold: The acceptable deviation (as a proportion) from the reference mean/std.
+            threshold: The acceptable deviation (as a percentage, e.g., 0.1 for 10%) from the reference mean/std.
         """
         for column in self.reference_df.columns:
-            if is_numeric_dtype(self.reference_df[column]): # 'number' is a pandas dtype alias for numeric types
+            print(f"DEBUG: add_numerical_distribution_drifts - Column: {column}, Dtype: {self.reference_df[column].dtype}, is_numeric_dtype: {is_numeric_dtype(self.reference_df[column])}")
+            if is_numeric_dtype(self.reference_df[column]):
                 # Mean
                 mean = self.reference_df[column].mean()
                 min_value, max_value = ReferenceExpectationBuilder.get_range(mean, abs(mean) * threshold, is_proportion=False)
@@ -96,9 +94,7 @@ class ReferenceExpectationBuilder:
                 std = self.reference_df[column].std()
                 min_value, max_value = ReferenceExpectationBuilder.get_range(std, abs(std) * threshold, is_proportion=False)
                 self.expectations.append(gxe.ExpectColumnStdevToBeBetween(column=column, min_value=min_value, max_value=max_value))
-                # distribution can be done using ExpectColumnQuantileValuesToBeBetween with Q = [0, .25, .5, .75. 1]
             else:
-                # Other cases might not be categorical, we will need specific methods to deal with those. e.g. objects may be free form text or standardized enum text.
                 pass
     
     def add_string_pattern_drift(self, column: str, pattern: str) -> None:
