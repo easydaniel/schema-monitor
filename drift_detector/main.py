@@ -55,9 +55,17 @@ def main() -> None:
         
         if not drift_report.success:
             failures = []
+            ignore_columns = []
+            for result in drift_report.results:
+                # Filter out missing and unexpected columns since the other expectations is meaning-less
+                config = result.expectation_config
+                if not result.success and config.type == "expect_table_columns_to_match_set":
+                    ignore_columns += result.result['details']['mismatched']['missing']
             for result in drift_report.results:
                 if not result.success:
                     config = result.expectation_config
+                    if config.type != "expect_table_columns_to_match_set" and config.kwargs['column'] in ignore_columns:
+                        continue
                     failures.append({
                         "type_of_check": config.type,
                         "severity": config.severity,

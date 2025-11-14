@@ -66,7 +66,6 @@ class ReferenceExpectationBuilder:
             threshold: The maximum acceptable KL divergence between the reference and target distributions.
         """
         for column in self.reference_df.columns:
-            print(f"DEBUG: add_categorical_distribution_drifts - Column: {column}, Dtype: {self.reference_df[column].dtype}, is_numeric_dtype: {is_numeric_dtype(self.reference_df[column])}")
             # Heuristic for categorical: not numeric and low cardinality
             if not is_numeric_dtype(self.reference_df[column]) and self.reference_df[column].nunique() / len(self.reference_df) < 0.5:
                 distribution = self.reference_df[column].value_counts(normalize=True, dropna=False)
@@ -84,7 +83,6 @@ class ReferenceExpectationBuilder:
             threshold: The acceptable deviation (as a percentage, e.g., 0.1 for 10%) from the reference mean/std.
         """
         for column in self.reference_df.columns:
-            print(f"DEBUG: add_numerical_distribution_drifts - Column: {column}, Dtype: {self.reference_df[column].dtype}, is_numeric_dtype: {is_numeric_dtype(self.reference_df[column])}")
             if is_numeric_dtype(self.reference_df[column]):
                 # Mean
                 mean = self.reference_df[column].mean()
