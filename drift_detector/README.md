@@ -15,12 +15,23 @@ The `drift_detector` performs a variety of checks to identify different types of
 
 The tool uses an in-memory Great Expectations context for clean execution, avoiding the creation of persistent files.
 
+## Dependencies
+
+*   pandas
+*   openpyxl
+*   great-expectations
+
 ## Installation
 
 To install the project, navigate to the root directory and run:
 
 ```bash
 pip install .
+```
+or for development:
+```bash
+pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Usage
@@ -66,6 +77,65 @@ Example JSON output for a failed check:
   }
 ]
 ```
+
+## Flow Diagram
+
+The following diagram illustrates the high-level workflow of the `drift_detector` tool:
+
+```mermaid
+graph TD
+    A[Start] --> B{Parse CLI Arguments};
+    B -- reference <file> --> C{Load Reference Dataset};
+    B -- target <file> --> D{Load Target Dataset};
+    C -- DataFrame --> E{Build Expectations};
+    D -- DataFrame --> F{Validate Target Data};
+    E -- ReferenceExpectationBuilder --> G[Generate ExpectationSuite];
+    G -- great_expectations Suite --> F;
+    F -- Validation Results --> H{Process Results};
+    H -- Failures --> I[Print JSON Report];
+    H -- Success --> J[Print Success Message];
+    I --> K[End];
+    J --> K;
+
+    subgraph Load Data
+        C --> CD{File Type?};
+        CD -- .csv --> CSV_C[pd.read_csv];
+        CD -- .xls/.xlsx --> EXCEL_C[pd.read_excel];
+        CSV_C --> E;
+        EXCEL_C --> E;
+
+        D --> DD{File Type?};
+        DD -- .csv --> CSV_D[pd.read_csv];
+        DD -- .xls/.xlsx --> EXCEL_D[pd.read_excel];
+        CSV_D --> F;
+        EXCEL_D --> F;
+    end
+
+    subgraph Expectation Building
+        E --> E1[Add Column Changes];
+        E1 --> E2[Add Column Type Changes];
+        E2 --> E3[Add Null Value Drifts];
+        E3 --> E4[Add Numerical Distribution Drifts];
+        E4 --> E5[Add Categorical Distribution Drifts];
+        E5 --> G;
+    end
+
+    subgraph Validation
+        F --> F1[GX Ephemeral Context];
+        F1 --> F2[Add Pandas DataSource];
+        F2 --> F3[Get Batch from Target DF];
+        F3 --> F4[Batch.validate];
+        F4 --> H;
+    end
+```
+
+**Explanation:**
+
+1.  **Parse CLI Arguments:** The tool starts by parsing the command-line arguments to get the paths for the reference and target datasets.
+2.  **Load Datasets:** It loads both the reference and target files into pandas DataFrames, supporting CSV and Excel formats.
+3.  **Build Expectations:** The `ReferenceExpectationBuilder` analyzes the reference DataFrame to create a Great Expectations `ExpectationSuite`. This includes checks for schema, types, nulls, and distributions.
+4.  **Validate Target Data:** The `run_validation` function in `validator.py` uses an ephemeral Great Expectations context to validate the target DataFrame against the generated `ExpectationSuite`.
+5.  **Process Results:** The validation results are processed. If there are failures, a JSON report is generated and printed. Otherwise, a success message is displayed.
 
 ## Development
 
