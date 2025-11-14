@@ -53,16 +53,20 @@ def main() -> None:
         
         drift_report = run_validation(reference_df, target_df)
         
-        if not drift_report["success"]:
-            # TODO Generate a better human readable report
-            for result in drift_report["results"]:
-                if result.success != True:
-                    pp({
-                        "type": result.expectation_config.type,
-                        "severity": result.expectation_config.severity,
-                        "result": result.result})
+        if not drift_report.success:
+            failures = []
+            for result in drift_report.results:
+                if not result.success:
+                    config = result.expectation_config
+                    failures.append({
+                        "type_of_check": config.type,
+                        "severity": config.severity,
+                        "expected_data": config.kwargs,
+                        "observed_data": result.result,
+                    })
+            pp(failures)
         else:
-            print("Data valid, all expectation passed!")
+            print("\nData valid, all expectations passed!")
 
     except (FileNotFoundError, ValueError, Exception) as e:
         print(f"An error occurred: {e}")

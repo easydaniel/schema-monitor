@@ -53,7 +53,7 @@ class ReferenceExpectationBuilder:
         """
         for column in self.reference_df.columns:
             reference_non_null_proportion = 1 - (self.reference_df[column].isnull().sum() / len(self.reference_df))
-            min_value, max_value = ReferenceExpectationBuilder.get_range(reference_non_null_proportion, tolerance)
+            min_value, max_value = ReferenceExpectationBuilder.get_range(reference_non_null_proportion, tolerance, is_proportion=True)
             self.expectations.append(gxe.ExpectColumnProportionOfNonNullValuesToBeBetween(column=column, min_value=min_value, max_value=max_value))
     
     def add_categorical_distribution_drifts(self, threshold: float = 0.1) -> None:
@@ -87,14 +87,14 @@ class ReferenceExpectationBuilder:
             threshold: The acceptable deviation (as a proportion) from the reference mean/std.
         """
         for column in self.reference_df.columns:
-            if self.reference_df[column].dtype == 'number': # 'number' is a pandas dtype alias for numeric types
+            if is_numeric_dtype(self.reference_df[column]): # 'number' is a pandas dtype alias for numeric types
                 # Mean
                 mean = self.reference_df[column].mean()
-                min_value, max_value = ReferenceExpectationBuilder.get_range(mean, threshold)
+                min_value, max_value = ReferenceExpectationBuilder.get_range(mean, abs(mean) * threshold, is_proportion=False)
                 self.expectations.append(gxe.ExpectColumnMeanToBeBetween(column=column, min_value=min_value, max_value=max_value))
                 # std
                 std = self.reference_df[column].std()
-                min_value, max_value = ReferenceExpectationBuilder.get_range(std, threshold)
+                min_value, max_value = ReferenceExpectationBuilder.get_range(std, abs(std) * threshold, is_proportion=False)
                 self.expectations.append(gxe.ExpectColumnStdevToBeBetween(column=column, min_value=min_value, max_value=max_value))
                 # distribution can be done using ExpectColumnQuantileValuesToBeBetween with Q = [0, .25, .5, .75. 1]
             else:
@@ -114,18 +114,26 @@ class ReferenceExpectationBuilder:
         """
         if column not in self.reference_df.columns:
             raise Exception(f"No matching column named: `{column}`")
-        self.expectations.append(gxe.ExpectColumnValuesToMatchLikePattern(column=column, pattern=pattern))
+        # Improve this by analyzing reference column and generate regex/pattern to be use for detection.
+        self.expectations.append(gxe.ExpectColumnValuesToMatchLikePattern(column=column, like_pattern=pattern))
 
     @staticmethod
-    def get_range(base: float, tolerance: float) -> Tuple[float, float]:
+    def get_range(base: float, tolerance: float, is_proportion: bool = False) -> Tuple[float, float]:
         """
         Calculates a min and max range based on a base value and a tolerance.
 
         Args:
             base: The central value.
             tolerance: The acceptable deviation from the base value.
+            is_proportion: If True, caps the range between 0.0 and 1.0.
 
         Returns:
             A tuple containing the calculated (min_value, max_value).
         """
-        return max(0.0, base - tolerance), min(1.0, base + tolerance)
+        min_val = base - tolerance
+        max_val = base + tolerance
+        
+        if is_proportion:
+            return max(0.0, min_val), min(1.0, max_val)
+        else:
+            return min_val, max_val

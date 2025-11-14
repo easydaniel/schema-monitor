@@ -28,6 +28,15 @@ def test_load_dataframe_non_existent_file() -> None:
     with pytest.raises(FileNotFoundError):
         load_dataframe("non_existent_file.csv")
 
+def test_load_dataframe_excel() -> None:
+    """
+    Tests loading a dataframe from an Excel file.
+    """
+    df = load_dataframe("drift_detector/tests/test.xlsx")
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (2, 2)
+    assert list(df.columns) == ["col1", "col2"]
+
 def test_main_function_with_args(capsys, monkeypatch, create_test_files: Dict[str, str]) -> None:
     """
     Test the main function with command-line arguments.
